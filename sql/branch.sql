@@ -36,3 +36,8 @@ CREATE TRIGGER enforce_email_for_participant_identity
     BEFORE INSERT ON participant_identities
     FOR EACH ROW
     EXECUTE PROCEDURE fail_if_no_email();
+
+
+-- participants.has_verified_identity
+
+ALTER TABLE participants ADD COLUMN has_verified_identity bool NOT NULL DEFAULT false;
