@@ -502,8 +502,8 @@ class TestPayin(BillingHarness):
         with self.db.get_cursor() as cursor:
             payday.prepare(cursor)
             payday.process_payment_instructions(cursor)
-            payday.transfer_takes(cursor, payday.ts_start)
             payday.process_unclaimed(cursor)
+            payday.process_takes(cursor, payday.ts_start)
             assert cursor.one("select new_balance from payday_participants "
                               "where username='picard'") == D('0.51')
             assert cursor.one("select balance from payday_teams where slug='TheEnterprise'") == 0
@@ -568,6 +568,85 @@ class TestPayin(BillingHarness):
         filename = open_.call_args_list[-1][0][0]
         assert filename.endswith('_payments.csv')
         os.unlink(filename)
+
+
+class TestTakes(BillingHarness):
+
+    tearDownClass = None
+
+    def setUp(self):
+        self.enterprise = self.make_team('The Enterprise', is_approved=True)
+        self.enterprise.set_ntakes(1000)
+        self.TT = self.db.one("SELECT id FROM countries WHERE code2='TT'")
+
+        picard = Participant.from_username(self.enterprise.owner)
+        self.identify(picard)
+
+    def make_member(self, username, ntakes):
+        member = self.make_participant(username, email_address=username+'@x.y', claimed_time='now')
+        self.identify(member)
+        self.enterprise.set_ntakes_for(member, ntakes)
+        return member
+
+    def identify(self, participant):
+        participant.store_identity_info(self.TT, 'nothing-enforced', {})
+        participant.set_identity_verification(self.TT, True)
+
+    payday = None
+    def start_payday(self):
+        self.payday = Payday.start()
+
+    def run_through_takes(self):
+        if not self.payday:
+            self.start_payday()
+        with self.db.get_cursor() as cursor:
+            self.payday.prepare(cursor)
+            cursor.run("UPDATE payday_teams SET balance=99")
+            self.payday.process_takes(cursor, self.payday.ts_start)
+            self.payday.update_balances(cursor)
+
+
+    # pt - process_takes
+
+    def test_pt_processes_takes(self):
+        self.make_member('crusher', 500)
+        self.make_member('bruiser', 400)
+        self.run_through_takes()
+        assert Participant.from_username('crusher').balance == D('49.50')
+        assert Participant.from_username('bruiser').balance == D('39.60')
+        assert Participant.from_username('picard').balance  == D(' 0.00')
+
+    def test_pt_ignores_takes_set_after_the_start_of_payday(self):
+        self.make_member('crusher', 500)
+        self.start_payday()
+        self.make_member('bruiser', 400)
+        self.run_through_takes()
+        assert Participant.from_username('crusher').balance == D('49.50')
+        assert Participant.from_username('bruiser').balance == D(' 0.00')
+        assert Participant.from_username('picard').balance  == D(' 0.00')
+
+    def test_pt_ignores_takes_that_have_already_been_processed(self):
+        self.make_member('crusher', 500)
+        self.start_payday()
+        self.make_member('bruiser', 400)
+        self.run_through_takes()
+        self.run_through_takes()
+        self.run_through_takes()
+        self.run_through_takes()
+        self.run_through_takes()
+        assert Participant.from_username('crusher').balance == D('49.50')
+        assert Participant.from_username('bruiser').balance == D(' 0.00')
+        assert Participant.from_username('picard').balance  == D(' 0.00')
+
+    def test_pt_is_happy_to_deal_the_owner_in(self):
+        self.make_member('crusher', 500)
+        self.make_member('bruiser', 400)
+        self.enterprise.set_ntakes_for(Participant.from_username(self.enterprise.owner), 50)
+        self.run_through_takes()
+        assert Participant.from_username('crusher').balance == D('49.50')
+        assert Participant.from_username('bruiser').balance == D('39.60')
+        assert Participant.from_username('picard').balance  == D(' 4.95')
+
 
 class TestNotifyParticipants(EmailHarness):
 
