@@ -5,10 +5,11 @@ from gratipay.models import add_event
 
 class TakesMixin(object):
     """This mixin provides API for working with
-    :py:class:`~gratipay.models.team.Team` takes.
+    :py:class:`~gratipay.models.team.Team` takes, which is used in the
+    :py:class:`~gratipay.models.team.mixins.Membership` mixin.
 
     Teams may issue "takes," which are like shares but different. Shares confer
-    legal ownership. Membership in a Gratipay team does not confer legal
+    legal ownership. Membership takes from a Gratipay team do not confer legal
     ownership---though a team's legal owners may "claim" takes, right alongside
     employees, contractors, etc. Takes simply determine how money is split each
     week. The legal relationship between the team and those receiving money is
