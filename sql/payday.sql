@@ -30,6 +30,7 @@ CREATE TABLE payday_teams AS
          , slug
          , owner
          , ntakes
+         , baseline
          , 0::numeric(35, 2) AS balance
          , false AS is_drained
       FROM teams t
@@ -206,19 +207,19 @@ CREATE TRIGGER process_payment_instruction BEFORE UPDATE OF is_funded ON payday_
     EXECUTE PROCEDURE process_payment_instruction();
 
 
--- Create a trigger to process distributions based on takes
+-- Create a trigger to process distributions to team members
 
-CREATE OR REPLACE FUNCTION process_distribution() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION process_member_distribution() RETURNS trigger AS $$
     DECLARE
-        amount          numeric(35,2);
-        team_balance    numeric(35,2);
-        team_ntakes     int;
+        amount      numeric(35,2);
+        available   numeric(35,2);
+        team_ntakes int;
     BEGIN
-        team_balance := (SELECT balance FROM payday_teams WHERE id = NEW.team_id);
-        IF (team_balance <= 0) THEN RETURN NULL; END IF;
+        available := (SELECT balance - baseline FROM payday_teams WHERE id = NEW.team_id);
+        IF (available <= 0) THEN RETURN NULL; END IF;
 
         team_ntakes := (SELECT ntakes FROM payday_teams WHERE id = NEW.team_id);
-        amount := (NEW.ntakes::numeric / team_ntakes::numeric) * team_balance;
+        amount := (NEW.ntakes::numeric / team_ntakes::numeric) * available;
         amount := round(amount, 2);
 
         -- `pay` decrements the team balance, so we need to decrement ntakes as
@@ -240,7 +241,7 @@ CREATE OR REPLACE FUNCTION process_distribution() RETURNS trigger AS $$
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER process_takes AFTER INSERT ON payday_takes
-    FOR EACH ROW EXECUTE PROCEDURE process_distribution();
+    FOR EACH ROW EXECUTE PROCEDURE process_member_distribution();
 
 
 -- Create a trigger to process draws

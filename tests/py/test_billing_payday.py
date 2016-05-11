@@ -570,7 +570,7 @@ class TestPayin(BillingHarness):
         os.unlink(filename)
 
 
-class TestTakes(BillingHarness):
+class TestPayout(BillingHarness):
 
     tearDownClass = None
 
@@ -596,56 +596,78 @@ class TestTakes(BillingHarness):
     def start_payday(self):
         self.payday = Payday.start()
 
-    def run_through_takes(self):
+    def process_distributions(self):
         if not self.payday:
             self.start_payday()
         with self.db.get_cursor() as cursor:
             self.payday.prepare(cursor)
             cursor.run("UPDATE payday_teams SET balance=99")
             self.payday.process_takes(cursor, self.payday.ts_start)
+            self.payday.process_draws(cursor)
             self.payday.update_balances(cursor)
 
 
-    # pt - process_takes
+    # pd - process_distributions -- This is a pseudo-function, if you will; I'm not
+    #                               taking the time to refactor Payday right now.
 
-    def test_pt_processes_takes(self):
+    def test_pd_processes_takes(self):
         self.make_member('crusher', 500)
         self.make_member('bruiser', 400)
-        self.run_through_takes()
+        self.process_distributions()
         assert Participant.from_username('crusher').balance == D('49.50')
         assert Participant.from_username('bruiser').balance == D('39.60')
-        assert Participant.from_username('picard').balance  == D(' 0.00')
+        assert Participant.from_username('picard').balance  == D(' 9.90')
 
-    def test_pt_ignores_takes_set_after_the_start_of_payday(self):
+    def test_pd_ignores_takes_set_after_the_start_of_payday(self):
         self.make_member('crusher', 500)
         self.start_payday()
         self.make_member('bruiser', 400)
-        self.run_through_takes()
+        self.process_distributions()
         assert Participant.from_username('crusher').balance == D('49.50')
         assert Participant.from_username('bruiser').balance == D(' 0.00')
-        assert Participant.from_username('picard').balance  == D(' 0.00')
+        assert Participant.from_username('picard').balance  == D('49.50')
 
-    def test_pt_ignores_takes_that_have_already_been_processed(self):
+    def test_pd_ignores_takes_that_have_already_been_processed(self):
         self.make_member('crusher', 500)
         self.start_payday()
         self.make_member('bruiser', 400)
-        self.run_through_takes()
-        self.run_through_takes()
-        self.run_through_takes()
-        self.run_through_takes()
-        self.run_through_takes()
+        self.process_distributions()
+        self.process_distributions()
+        self.process_distributions()
+        self.process_distributions()
+        self.process_distributions()
         assert Participant.from_username('crusher').balance == D('49.50')
         assert Participant.from_username('bruiser').balance == D(' 0.00')
-        assert Participant.from_username('picard').balance  == D(' 0.00')
+        assert Participant.from_username('picard').balance  == D('49.50')
 
-    def test_pt_is_happy_to_deal_the_owner_in(self):
+    def test_pd_is_happy_to_deal_the_owner_in(self):
         self.make_member('crusher', 500)
         self.make_member('bruiser', 400)
         self.enterprise.set_ntakes_for(Participant.from_username(self.enterprise.owner), 50)
-        self.run_through_takes()
+        self.process_distributions()
         assert Participant.from_username('crusher').balance == D('49.50')
         assert Participant.from_username('bruiser').balance == D('39.60')
-        assert Participant.from_username('picard').balance  == D(' 4.95')
+        assert Participant.from_username('picard').balance  == D(' 9.90')
+
+    def test_pd_respects_baseline(self):
+        self.db.run("UPDATE teams SET baseline=33")
+        self.make_member('crusher', 500)
+        self.process_distributions()
+        assert Participant.from_username('crusher').balance == D('33.00')
+        assert Participant.from_username('picard').balance  == D('66.00')
+
+    def test_pd_leaves_the_rest_for_the_owner(self):
+        self.make_member('crusher', 500)
+        self.process_distributions()
+        assert Participant.from_username('crusher').balance == D('49.50')
+        assert Participant.from_username('picard').balance  == D('49.50')
+
+    def test_pd_handles_baseline_and_draw_gracefully(self):
+        self.db.run("UPDATE teams SET baseline=33")
+        self.make_member('crusher', 500)
+        self.process_distributions()
+        assert Participant.from_username('crusher').balance == D('33.00')
+        assert Participant.from_username('picard').balance  == D('66.00')
 
 
 class TestNotifyParticipants(EmailHarness):

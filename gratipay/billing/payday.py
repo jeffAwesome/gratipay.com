@@ -297,7 +297,19 @@ class Payday(object):
         """Send whatever remains after processing takes claimed by members to the team owner.
         """
         log("Processing draws.")
-        cursor.run("UPDATE payday_teams SET is_drained=true;")
+        cursor.run("""
+
+         UPDATE payday_teams pt
+            SET is_drained=true
+          WHERE ( SELECT ppd.id
+                    FROM payday_payments_done ppd
+                    JOIN teams ON teams.slug = ppd.team
+                   WHERE ppd.team = pt.slug             -- from the team
+                     AND ppd.participant = teams.owner  -- to the owner
+                     AND direction = 'to-participant'
+                 ) IS NULL
+
+        """)
 
 
     def settle_card_holds(self, cursor, holds):
