@@ -22,8 +22,7 @@ from gratipay.exceptions import (
 from gratipay.models.account_elsewhere import AccountElsewhere
 from gratipay.models.exchange_route import ExchangeRoute
 from gratipay.models.participant import (
-    LastElsewhere, NeedConfirmation, NonexistingElsewhere, Participant, TeamCantBeOnlyAuth,
-    WontTakeOverWithIdentities
+    LastElsewhere, NeedConfirmation, NonexistingElsewhere, Participant, TeamCantBeOnlyAuth
 )
 from gratipay.models.team import Team
 from gratipay.testing import Harness
@@ -206,7 +205,7 @@ class TestTakeOver(Harness):
         alice.take_over(bob_github, have_confirmation=True)
         self.db.self_check()
 
-    def test_take_over_fails_if_secondary_has_identity_info(self):
+    def test_take_over_hard_fails_if_secondary_has_identity_info(self):
         TT = self.db.one("SELECT id FROM countries WHERE code='TT'")
         alice = self.make_participant('alice')
 
@@ -216,7 +215,7 @@ class TestTakeOver(Harness):
         bob.verify_email('bob@example.com', bob.get_email('bob@example.com').nonce)
         bob.store_identity_info(TT, 'nothing-enforced', {})
 
-        pytest.raises(WontTakeOverWithIdentities, alice.take_over, bob_github)
+        pytest.raises(NotImplementedError, alice.take_over, bob_github)
 
     def test_idempotent(self):
         alice_twitter = self.make_elsewhere('twitter', 1, 'alice')

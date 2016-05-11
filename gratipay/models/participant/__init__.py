@@ -1415,13 +1415,13 @@ class Participant(Model, mixins.Identity):
                 return
 
 
-            # Hard fail if the other participant has an identity.
-            # ===================================================
-            # Our identity system is very young. Maybe some day we'll do
-            # something smarter here.
+            # Hard fail in certain cases.
+            # ===========================
+            # We're barely getting started with identity and team takes.
+            # Hopefully some day we'll do something smarter here.
 
-            if other.list_identity_metadata():
-                raise WontTakeOverWithIdentities()
+            if other.list_identity_metadata() or other.ntaking_from > 0:
+                raise NotImplementedError()
 
 
             # Make sure we have user confirmation if needed.
@@ -1636,5 +1636,3 @@ class LastElsewhere(Exception): pass
 class NonexistingElsewhere(Exception): pass
 
 class TeamCantBeOnlyAuth(Exception): pass
-
-class WontTakeOverWithIdentities(Exception): pass
