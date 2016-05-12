@@ -167,6 +167,8 @@ class TakesMixin(object):
                  , 'recorder_id': recorder.id
                   })
 
+            participant.update_taking(cursor)
+
             self.set_attributes( ntakes_claimed=nclaimed
                                , ntakes_unclaimed=nunclaimed
                                , ndistributing_to=ndistributing_to

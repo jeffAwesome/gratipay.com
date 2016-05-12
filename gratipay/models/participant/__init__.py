@@ -1042,15 +1042,13 @@ class Participant(Model, mixins.Identity):
                AND p.id != %(id)s
         """, dict(username=self.username,team=team,id=except_for))
 
+
     def update_taking(self, cursor=None):
-        (cursor or self.db).run("""
-
-            UPDATE participants
-               SET taking=COALESCE((SELECT sum(receiving) FROM teams WHERE owner=%(username)s), 0)
-                 , ntaking_from=COALESCE((SELECT count(*) FROM teams WHERE owner=%(username)s), 0)
-             WHERE username=%(username)s
-
-        """, dict(username=self.username))
+        # Update logic happens down in a Postgres trigger. We just need to refresh.
+        taking, ntaking_from = (cursor or self.db).one("""\
+            SELECT taking, ntaking_from FROM participants WHERE id=%s
+        """, (self.id,))
+        self.set_attributes(taking=taking, ntaking_from=ntaking_from)
 
 
     def update_is_free_rider(self, is_free_rider, cursor=None):

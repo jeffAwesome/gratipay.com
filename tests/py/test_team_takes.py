@@ -1,5 +1,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from decimal import Decimal as D
+
 from gratipay.testing import Harness
 from gratipay.models.participant import Participant
 from gratipay.models.team.mixins.takes import BadMember
@@ -31,6 +33,9 @@ class TeamTakesHarness(Harness):
                                              )
         self.bruiser.store_identity_info(self.TT, 'nothing-enforced', {'name': 'Bruiser'})
         self.bruiser.set_identity_verification(self.TT, True)
+
+        self.bob = self.make_participant('bob', claimed_time='now', last_bill_result='')
+        self.bob.set_payment_instruction(self.enterprise, '99.00')
 
     @property
     def last_event(self):
@@ -127,6 +132,11 @@ class TestSetNtakesFor(TeamTakesHarness):
         assert self.enterprise.set_ntakes_for(self.crusher, 537, self.picard) == 537
         assert self.last_take.recorder_id == self.picard.id
 
+    def test_snf_updates_taking_on_member(self):
+        self.crusher.ntaking_from == 0
+        self.enterprise.set_ntakes_for(self.crusher, 537)
+        assert self.crusher.taking == D('53.16')
+        assert self.crusher.ntaking_from == 1
 
 
     def assert_bad_member(self, member, reason):
